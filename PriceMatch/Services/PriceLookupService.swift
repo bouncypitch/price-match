@@ -158,7 +158,8 @@ final class PriceLookupService {
                 link: listing.link,
                 kind: store.kind,
                 matchedByName: listing.matchedByName,
-                isApproximate: listing.isApproximatePrice
+                isApproximate: listing.isApproximatePrice,
+                imageURL: listing.thumbnail.flatMap { $0.scheme == "https" ? $0 : nil }   // iOS blocks plain http
             )
             // An exact price always beats a rounded one from the same store; otherwise keep the cheapest.
             if let existing = bestPerStore[offer.storeName] {

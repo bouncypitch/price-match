@@ -105,6 +105,6 @@ enum CompetitorFilter {
         if notes.contains(where: { $0.lowercased().contains("in stock") }) {
             return "In stock online"
         }
-        return "Online · delivery time not shown"
+        return "Online"
     }
 }

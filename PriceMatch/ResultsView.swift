@@ -145,7 +145,7 @@ struct ResultsView: View {
             } placeholder: {
                 Image(systemName: "shippingbox").font(.title).foregroundStyle(.secondary)
             }
-            .frame(width: 64, height: 64)
+            .frame(width: 68, height: 68)
             .padding(4)
             .background(.white, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
 
@@ -170,28 +170,35 @@ private struct OfferCard: View {
 
     var body: some View {
         Button(action: onTap) {
-            HStack(alignment: .center, spacing: 12) {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(offer.storeName)
-                        .font(.rounded(.title2, .bold))
-                    Label(offer.availability, systemImage: icon)
-                        .font(.rounded(.body))
-                        .foregroundStyle(.secondary)
-                    if let note = offer.note {
-                        Text(note)
-                            .font(.rounded(.body, .semibold))
-                            .foregroundStyle(Color(hex: 0xF59E0B))
+            VStack(alignment: .leading, spacing: 10) {
+                // The matching product's photo from this store's listing, next to its price,
+                // so the cashier can compare it with Home Depot's photo at the top.
+                HStack(alignment: .center, spacing: 14) {
+                    ProductPhoto(url: offer.imageURL)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(offer.storeName)
+                            .font(.rounded(.title2, .bold))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.7)
+                        Text(Money.format(offer.price, approximate: offer.isApproximate))
+                            .font(.rounded(offer.isApproximate ? .title : .largeTitle, .bold))
+                            .monospacedDigit()
+                            .minimumScaleFactor(0.6)
+                            .lineLimit(1)
+                            .foregroundStyle(isBest ? AnyShapeStyle(Theme.accent) : AnyShapeStyle(.primary))
                     }
+                    Spacer(minLength: 0)
                 }
-                Spacer(minLength: 8)
-                Text(Money.format(offer.price, approximate: offer.isApproximate))
-                    .font(.rounded(offer.isApproximate ? .title : .largeTitle, .bold))
-                    .monospacedDigit()
-                    .minimumScaleFactor(0.6)
-                    .lineLimit(1)
-                    .foregroundStyle(isBest ? AnyShapeStyle(Theme.accent) : AnyShapeStyle(.primary))
+                Label(offer.availability, systemImage: icon)
+                    .font(.rounded(.body))
+                    .foregroundStyle(.secondary)
+                if let note = offer.note {
+                    Text(note)
+                        .font(.rounded(.body, .semibold))
+                        .foregroundStyle(Color(hex: 0xF59E0B))
+                }
             }
-            .padding(20)
+            .padding(16)
             .frame(maxWidth: .infinity, minHeight: 96, alignment: .leading)
             .foregroundStyle(.primary)
             .background(Color(.secondarySystemGroupedBackground),
@@ -208,6 +215,27 @@ private struct OfferCard: View {
 
     private var icon: String {
         offer.availability.lowercased().contains("pick up") ? "storefront" : "shippingbox"
+    }
+}
+
+/// The product photo from a store's listing, so the cashier can compare it with Home Depot's at a glance.
+private struct ProductPhoto: View {
+    let url: URL?
+
+    var body: some View {
+        AsyncImage(url: url) { phase in
+            if let image = phase.image {
+                image.resizable().scaledToFit()
+            } else {
+                Image(systemName: url == nil ? "photo" : "photo.badge.arrow.down")
+                    .font(.title2)
+                    .foregroundStyle(.gray.opacity(0.6))
+            }
+        }
+        .frame(width: 68, height: 68)
+        .padding(4)
+        .background(.white, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .accessibilityHidden(true)
     }
 }
 

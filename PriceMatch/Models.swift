@@ -16,6 +16,7 @@ struct Offer: Identifiable, Hashable {
     let kind: Kind
     var matchedByName = false   // no model number in the listing; matched by name and specs
     var isApproximate = false   // found by picture (Google Lens); price is rounded
+    var imageURL: URL? = nil    // product photo from this store's listing, for a visual double-check
 
     var isEligible: Bool { kind == .majorStore }
 
