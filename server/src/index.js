@@ -64,8 +64,10 @@ export default {
     // Cache successful answers at Cloudflare's edge; the cache key never leaves Cloudflare.
     const cacheKey = new Request(upstream.toString(), { method: "GET" });
     const cache = caches.default;
+    const searchedFor = allowedParams.map((n) => url.searchParams.get(n)).find((v) => v) ?? "";
     const cached = await cache.match(cacheKey);
     if (cached) {
+      console.log(JSON.stringify({ engine, searchedFor, status: cached.status, cache: "HIT" }));
       return withHeader(cached, "X-Cache", "HIT");
     }
 
@@ -78,6 +80,7 @@ export default {
     }
 
     const body = await response.text();
+    console.log(JSON.stringify({ engine, searchedFor, status: response.status, cache: "MISS", bytes: body.length }));
     const result = new Response(body, {
       status: response.status,
       headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": `max-age=${CACHE_SECONDS}` },

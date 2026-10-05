@@ -14,13 +14,14 @@ struct Offer: Identifiable, Hashable {
     let availability: String     // plain words, e.g. "Pick up at a store near you"
     let link: URL?
     let kind: Kind
+    var matchedByName = false   // no model number in the listing; matched by name and specs
 
     var isEligible: Bool { kind == .majorStore }
 
     /// Short warning shown on the card, or nil for major stores.
     var note: String? {
         switch kind {
-        case .majorStore: return nil
+        case .majorStore: return matchedByName ? "Check it's the same item" : nil
         case .otherStore: return "Check if this store qualifies"
         case .excluded: return "Usually can't be matched"
         }

@@ -1,44 +1,65 @@
 import Foundation
 
-/// Makes sure a store listing is the *same* item, not a similar one or a bundle.
+/// Decides whether a store listing is the *same* item, not a similar one, a bundle or an accessory.
+///
+/// Two ways to match:
+/// 1. **Model number** in the listing title (strongest), e.g. "DCD771C2".
+/// 2. **Product name**, for brands whose listings don't show a model number (e.g. Ring):
+///    same brand, every key word and spec ("2K", "20V", "2-Pack"), and no extra variant word
+///    ("Plus", "Pro", "Wired") or used/accessory wording.
+/// Either way, a listing priced under half or over double Home Depot's price is rejected.
 enum ProductMatcher {
-    /// What to search competitors for, e.g. "DEWALT DCD771C2".
+    enum Match {
+        case model
+        case name
+    }
+
+    /// What to search competitors for: brand + model when the model is a real manufacturer
+    /// number, otherwise brand + the product's short name.
     static func query(for product: ProductInfo) -> String {
-        if let model = product.model {
+        if let model = product.model, isSearchableModel(model) {
             return [product.brand, model].compactMap { $0 }.joined(separator: " ")
         }
-        // No model on file: use the title without bracketed codes, kept short.
-        let cleaned = product.title.replacingOccurrences(of: #"\([^)]*\)"#, with: " ", options: .regularExpression)
-        return cleaned.split(separator: " ").prefix(10).joined(separator: " ")
+        let name = coreName(product.title)
+        if let brand = product.brand, !normalize(name).hasPrefix(normalize(brand)) {
+            return brand + " " + name
+        }
+        return name
     }
 
     /// Model numbers that identify this product, e.g. ["DCD771C2"].
     static func modelCodes(for product: ProductInfo) -> [String] {
         var result: [String] = []
-        if let model = product.model { result.append(normalize(model)) }
+        if let model = product.model, isSearchableModel(model) { result.append(normalize(model)) }
         for code in codes(in: product.title) where !result.contains(code) {
             result.append(code)
         }
         return result.filter { $0.count >= 4 }
     }
 
-    /// True only if the listing names this exact model and no other model
-    /// (a second model number means a bundle like "drill + bit set").
-    static func matches(_ listingTitle: String, product: ProductInfo) -> Bool {
-        let wanted = modelCodes(for: product)
-        if !wanted.isEmpty {
-            let title = normalize(listingTitle)
-            guard wanted.contains(where: { title.contains($0) }) else { return false }
-            return codes(in: listingTitle).allSatisfy(wanted.contains)
+    /// How (if at all) a listing matches the product. `referencePrice` is Home Depot's price.
+    static func match(_ listingTitle: String, price: Double? = nil, product: ProductInfo,
+                      referencePrice: Double? = nil) -> Match? {
+        if let price, let reference = referencePrice, reference > 0,
+           price < reference * 0.5 || price > reference * 2 {
+            return nil   // far too cheap or expensive: an accessory, part, multi-pack or different item
         }
-        // No model number at all: require the brand and most of the important words.
+        if looksUsedOrAccessory(listingTitle, brand: product.brand) { return nil }
+        if hasDifferentColor(listingTitle, product: product) { return nil }
+
+        let wanted = modelCodes(for: product)
+        let found = codes(in: listingTitle)
+        // Naming a model we don't want means a different item or a bundle.
+        guard found.allSatisfy(wanted.contains) else { return nil }
+
         let title = normalize(listingTitle)
-        if let brand = product.brand, !title.contains(normalize(brand)) { return false }
-        let words = importantWords(product.title)
-        guard !words.isEmpty else { return false }
-        let listingWords = Set(importantWords(listingTitle))
-        let shared = words.filter(listingWords.contains).count
-        return Double(shared) / Double(words.count) >= 0.7
+        if wanted.contains(where: { title.contains($0) }) { return .model }
+        return matchesByName(listingTitle, product: product) ? .name : nil
+    }
+
+    /// Convenience used where only yes/no matters.
+    static func matches(_ listingTitle: String, product: ProductInfo) -> Bool {
+        match(listingTitle, product: product) != nil
     }
 
     /// For stores Google has already grouped as the same product: only reject listings
@@ -49,10 +70,91 @@ enum ProductMatcher {
         return codes(in: listingTitle).allSatisfy(wanted.contains)
     }
 
+    // MARK: - Name matching
+
+    private static let variantWords: Set<String> = [
+        "PLUS", "PRO", "MAX", "MINI", "ULTRA", "ELITE", "LITE", "XL", "XR", "WIRED", "BATTERY", "SOLAR",
+        "KIT", "COMBO", "BUNDLE", "SET", "PACK", "BARE", "TOOL", "STARTER", "GEN", "CHIME", "CAM", "CAMERA",
+    ]
+    private static let stopWords: Set<String> = [
+        "THE", "AND", "WITH", "FOR", "IN", "OF", "A", "AN", "NEW", "NEWEST", "MODEL", "LATEST", "BY", "TO", "ON",
+    ]
+
+    private static func matchesByName(_ listingTitle: String, product: ProductInfo) -> Bool {
+        let listing = Set(words(listingTitle))
+        if let brand = product.brand {
+            guard words(brand).allSatisfy(listing.contains) else { return false }
+        }
+        let core = words(coreName(product.title)).filter { word in
+            product.brand.map { !words($0).contains(word) } ?? true
+        }
+        guard core.count >= 2 else { return false }
+
+        // Every spec-like word (has a digit: 2K, 20V, 5AH, 2PACK) must be there exactly.
+        guard core.filter({ $0.contains(where: \.isNumber) }).allSatisfy(listing.contains) else { return false }
+        // Most of the other words must be there too.
+        let shared = core.filter(listing.contains).count
+        guard Double(shared) / Double(core.count) >= 0.8 else { return false }
+
+        // An extra variant word means a different version ("Doorbell 2K Plus" vs "Doorbell 2K").
+        let productWords = Set(words(product.title))
+        let extraVariants = listing.intersection(variantWords).subtracting(productWords)
+        return extraVariants.isEmpty
+    }
+
+    private static let colorWords: Set<String> = [
+        "BLACK", "WHITE", "GRAY", "GREY", "SILVER", "RED", "BLUE", "GREEN", "YELLOW", "ORANGE", "PINK",
+        "PURPLE", "BROWN", "TAN", "BEIGE", "IVORY", "ALMOND", "BRONZE", "NICKEL", "CHROME", "BRASS",
+        "GOLD", "COPPER", "STAINLESS", "NATURAL", "CLEAR",
+    ]
+
+    /// Both name a color/finish and they share none: a different variant ("Satin Nickel" vs "Oil-Rubbed Bronze").
+    private static func hasDifferentColor(_ listingTitle: String, product: ProductInfo) -> Bool {
+        let wanted = Set(words(product.title)).intersection(colorWords)
+        let offered = Set(words(listingTitle)).intersection(colorWords)
+        return !wanted.isEmpty && !offered.isEmpty && wanted.isDisjoint(with: offered)
+    }
+
+    private static func looksUsedOrAccessory(_ title: String, brand: String?) -> Bool {
+        let t = title.lowercased()
+        let flags = ["used", "refurbished", "renewed", "like-new", "like new", "pre-owned", "open box",
+                     "parts only", "for parts", "replacement for", "compatible with", "faceplate", "case for", "cover for"]
+        if flags.contains(where: { t.contains($0) }) { return true }
+        if let brand, t.contains("for \(brand.lowercased())") { return true }   // "Mount for Ring Doorbell"
+        return false
+    }
+
+    /// The product's short name: the title before marketing details.
+    /// "Battery Doorbell 2K - Retinal 2K with Wide-Angle Video" → "Battery Doorbell 2K"
+    static func coreName(_ title: String) -> String {
+        var name = title.replacingOccurrences(of: #"\([^)]*\)"#, with: " ", options: .regularExpression)
+        for separator in [" - ", " – ", " — ", ",", " | ", " with "] {
+            if let range = name.range(of: separator) {
+                let head = String(name[..<range.lowerBound])
+                if head.split(separator: " ").count >= 2 { name = head }
+            }
+        }
+        return name.split(separator: " ").prefix(8).joined(separator: " ")
+            .trimmingCharacters(in: .whitespaces)
+    }
+
+    // MARK: - Helpers
+
+    /// Manufacturer model numbers: letters and digits mixed ("DCD771C2"), or a long digit-only
+    /// number ("99160-022"). Amazon IDs ("B0…") and barcode-length numbers never appear in titles.
+    private static func isSearchableModel(_ model: String) -> Bool {
+        let m = normalize(model)
+        if m.count == 10 && m.hasPrefix("B0") { return false }               // Amazon ID
+        if m.allSatisfy(\.isNumber) {
+            return (6...11).contains(m.count)                                  // "99160-022" yes; barcodes no
+        }
+        return m.count >= 4 && m.contains(where: \.isLetter) && m.contains(where: \.isNumber)
+    }
+
     /// Model-number-looking words: letters and digits mixed, 5+ characters,
     /// not a measurement ("12INCH", "100PIECE", "20VMAX") and not an Amazon ID ("B0...").
     static func codes(in text: String) -> [String] {
-        let measurement = #"^[0-9]+[A-Z]+$"#
+        let measurement = #"^[0-9.]+[A-Z]+$"#
         var result: [String] = []
         for word in text.split(whereSeparator: { " ()[],/&+|:;*".contains($0) }) {
             let code = normalize(String(word))
@@ -72,11 +174,12 @@ enum ProductMatcher {
         s.uppercased().filter { $0.isLetter || $0.isNumber }
     }
 
-    private static func importantWords(_ s: String) -> [String] {
-        let stop: Set<String> = ["THE", "AND", "FOR", "WITH", "KIT", "IN", "OF", "PACK"]
-        return s.uppercased()
+    /// Upper-case words with hyphens joined ("2-Pack" → "2PACK", "Wide-Angle" → "WIDEANGLE").
+    private static func words(_ s: String) -> [String] {
+        s.uppercased()
+            .replacingOccurrences(of: "-", with: "")
             .split(whereSeparator: { !$0.isLetter && !$0.isNumber })
             .map(String.init)
-            .filter { $0.count >= 3 && !stop.contains($0) }
+            .filter { !stopWords.contains($0) && ($0.count >= 2 || $0.contains(where: \.isNumber)) }
     }
 }

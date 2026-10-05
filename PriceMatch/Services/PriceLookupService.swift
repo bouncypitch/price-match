@@ -101,14 +101,26 @@ final class PriceLookupService {
         async let google = try? client.googleShopping("Lowe's " + query)
         let googleListings = await google ?? []
         let all = (await walmart ?? []) + (await amazon ?? []) + googleListings
-        var listings = all.filter { ProductMatcher.matches($0.title, product: product) }
+        var listings: [ShoppingListing] = all.compactMap { listing in
+            guard let how = ProductMatcher.match(listing.title, price: listing.price, product: product,
+                                                 referencePrice: homeDepotPrice) else { return nil }
+            var kept = listing
+            kept.matchedByName = (how == .name)
+            return kept
+        }
 
         // Open Google's product page for this exact item to get every store, including Lowe's.
-        if let token = googleListings.first(where: {
-               $0.productToken != nil && ProductMatcher.matches($0.title, product: product)
-           })?.productToken,
+        // Prefer a listing matched by model number to pick the right product page.
+        let candidates = googleListings.filter { $0.productToken != nil }
+        let pick = candidates.first { ProductMatcher.match($0.title, price: $0.price, product: product, referencePrice: homeDepotPrice) == .model }
+            ?? candidates.first { ProductMatcher.match($0.title, price: $0.price, product: product, referencePrice: homeDepotPrice) != nil }
+        if let token = pick?.productToken,
            let stores = try? await client.googleProductStores(token: token) {
-            listings += stores.filter { ProductMatcher.hasNoOtherModel($0.title, product: product) }
+            // Google already grouped these as the same product; still drop other models and silly prices.
+            listings += stores.filter { store in
+                ProductMatcher.hasNoOtherModel(store.title, product: product)
+                    && (homeDepotPrice.map { hd in store.price >= hd * 0.5 && store.price <= hd * 2 } ?? true)
+            }
         }
 
         if homeDepotPrice == nil {
@@ -138,7 +150,8 @@ final class PriceLookupService {
                 price: listing.price,
                 availability: CompetitorFilter.availability(delivery: listing.delivery, notes: listing.notes),
                 link: listing.link,
-                kind: store.kind
+                kind: store.kind,
+                matchedByName: listing.matchedByName
             )
             if let existing = bestPerStore[offer.storeName], existing.price <= offer.price { continue }
             bestPerStore[offer.storeName] = offer

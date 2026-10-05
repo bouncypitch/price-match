@@ -3,6 +3,8 @@
   "name": "pricematch-server",
   "main": "src/index.js",
   "compatibility_date": "2026-09-01",
+  // Keep request logs (search type + what was searched; never the key) for troubleshooting.
+  "observability": { "enabled": true },
   "ratelimits": [
     {
       // 60 searches per minute per connection ≈ 12 scans a minute.

@@ -10,6 +10,7 @@ struct ShoppingListing {
     let link: URL?
     let thumbnail: URL?
     var productToken: String? = nil   // Google Shopping: opens the product page listing every store
+    var matchedByName = false         // matched by product name rather than model number
 }
 
 /// The exact item as Home Depot sells it.
