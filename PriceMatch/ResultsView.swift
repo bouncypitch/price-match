@@ -184,8 +184,8 @@ private struct OfferCard: View {
                     }
                 }
                 Spacer(minLength: 8)
-                Text(Money.format(offer.price))
-                    .font(.rounded(.largeTitle, .bold))
+                Text(Money.format(offer.price, approximate: offer.isApproximate))
+                    .font(.rounded(offer.isApproximate ? .title : .largeTitle, .bold))
                     .monospacedDigit()
                     .minimumScaleFactor(0.6)
                     .lineLimit(1)

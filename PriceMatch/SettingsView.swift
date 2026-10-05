@@ -24,7 +24,7 @@ struct SettingsView: View {
                 } header: {
                     Text("Price service")
                 } footer: {
-                    Text("Each scan uses 4–5 searches. Scanning the same item again within 15 minutes is free.")
+                    Text("Each scan uses 5–6 searches. Scanning the same item again within 15 minutes is free.")
                 }
 
                 Section {

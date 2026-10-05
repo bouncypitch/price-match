@@ -46,6 +46,7 @@ enum ProductMatcher {
         }
         if looksUsedOrAccessory(listingTitle, brand: product.brand) { return nil }
         if hasDifferentColor(listingTitle, product: product) { return nil }
+        if hasDifferentSize(listingTitle, product: product) { return nil }
 
         let wanted = modelCodes(for: product)
         let found = codes(in: listingTitle)
@@ -81,25 +82,93 @@ enum ProductMatcher {
     ]
 
     private static func matchesByName(_ listingTitle: String, product: ProductInfo) -> Bool {
-        let listing = Set(words(listingTitle))
+        let listing = Set(words(listingTitle).map(singular))
         if let brand = product.brand {
-            guard words(brand).allSatisfy(listing.contains) else { return false }
+            guard words(brand).map(singular).allSatisfy(listing.contains) else { return false }
         }
-        let core = words(coreName(product.title)).filter { word in
-            product.brand.map { !words($0).contains(word) } ?? true
-        }
+        let brandWords = Set(product.brand.map { words($0).map(singular) } ?? [])
+        let core = words(coreName(product.title)).map(singular).filter { !brandWords.contains($0) }
         guard core.count >= 2 else { return false }
 
-        // Every spec-like word (has a digit: 2K, 20V, 5AH, 2PACK) must be there exactly.
-        guard core.filter({ $0.contains(where: \.isNumber) }).allSatisfy(listing.contains) else { return false }
-        // Most of the other words must be there too.
-        let shared = core.filter(listing.contains).count
-        guard Double(shared) / Double(core.count) >= 0.8 else { return false }
+        // Like a cashier reading the label: every word of the product's name must be there
+        // ("Clean Burst" ≠ "Deep Clean"). Long names may differ by one word.
+        let missing = core.filter { !listing.contains($0) }.count
+        guard missing == 0 || (core.count >= 6 && missing == 1) else { return false }
 
         // An extra variant word means a different version ("Doorbell 2K Plus" vs "Doorbell 2K").
-        let productWords = Set(words(product.title))
-        let extraVariants = listing.intersection(variantWords).subtracting(productWords)
-        return extraVariants.isEmpty
+        let productWords = Set(words(product.title).map(singular))
+        guard listing.intersection(Set(variantWords.map(singular))).subtracting(productWords).isEmpty else { return false }
+
+        // If Home Depot's item has a size, the listing must show the same size to be checkable.
+        let wantedSizes = sizes(in: product.title)
+        if !wantedSizes.isEmpty {
+            let offered = sizes(in: listingTitle)
+            let confirmed = wantedSizes.contains { group, mine in
+                offered[group]?.contains { v in mine.contains { abs($0 - v) <= max(0.02 * $0, 0.01) } } ?? false
+            }
+            guard confirmed else { return false }
+        }
+        return true
+    }
+
+    /// "Doorbells" → "DOORBELL", "Loads" → "LOAD" (so plurals don't block a match).
+    private static func singular(_ word: String) -> String {
+        word.count > 3 && word.hasSuffix("S") && !word.hasSuffix("SS") ? String(word.dropLast()) : word
+    }
+
+    // MARK: - Size and quantity (what a cashier reads on the label)
+
+    /// Sizes stated in a title, grouped by kind: "174 fl oz, 174 Loads" → ["OZ": [174], "LOADS": [174]].
+    static func sizes(in text: String) -> [String: [Double]] {
+        let t = text.lowercased().replacingOccurrences(of: "&amp;", with: "&")
+        var result: [String: [Double]] = [:]
+        func add(_ group: String, _ value: Double) { result[group, default: []].append(value) }
+
+        let units: [(String, String)] = [
+            (#"fl\.?\s*oz|fluid\s*ounces?|ounces?|oz"#, "OZ"),
+            (#"loads?"#, "LOADS"),
+            (#"lbs?|pounds?"#, "LB"),
+            (#"gal(?:lons?)?"#, "GAL"),
+            (#"qt|quarts?"#, "QT"),
+            (#"ml"#, "ML"),
+            (#"liters?|litres?|l"#, "L"),
+            (#"ct|count|pcs?|pieces?"#, "COUNT"),
+            (#"pk|packs?"#, "PACK"),
+            (#"ft|feet|foot"#, "FT"),
+            (#"inch(?:es)?|in\."#, "IN"),
+        ]
+        for (unit, group) in units {
+            let pattern = #"(\d+(?:\.\d+)?)\s*-?\s*(?:"# + unit + #")(?![a-z])"#
+            guard let regex = try? NSRegularExpression(pattern: pattern) else { continue }
+            for m in regex.matches(in: t, range: NSRange(t.startIndex..., in: t)) {
+                if let r = Range(m.range(at: 1), in: t), let v = Double(t[r]) { add(group, v) }
+            }
+        }
+        // "(2 pack)", "case of 4", "set of 3", "4 units", "pack of 6"
+        for pattern in [#"(?:case|set|pack|box)\s+of\s+(\d+)"#, #"(\d+)\s*units?\b"#, #"\((\d+)\s*pack\)"#] {
+            guard let regex = try? NSRegularExpression(pattern: pattern) else { continue }
+            for m in regex.matches(in: t, range: NSRange(t.startIndex..., in: t)) {
+                if let r = Range(m.range(at: 1), in: t), let v = Double(t[r]) { add("PACK", v) }
+            }
+        }
+        return result
+    }
+
+    /// Both titles state a size of the same kind and none of the numbers agree (within 2%),
+    /// or the listing is a multi-pack of a single item.
+    static func hasDifferentSize(_ listingTitle: String, product: ProductInfo) -> Bool {
+        let wanted = sizes(in: product.title)
+        let offered = sizes(in: listingTitle)
+        for (group, values) in offered {
+            guard let mine = wanted[group] else {
+                // A 2-pack / case of 4 when Home Depot sells one.
+                if group == "PACK", values.contains(where: { $0 > 1 }) { return true }
+                continue
+            }
+            let agrees = values.contains { v in mine.contains { abs($0 - v) <= max(0.02 * $0, 0.01) } }
+            if !agrees { return true }
+        }
+        return false
     }
 
     private static let colorWords: Set<String> = [

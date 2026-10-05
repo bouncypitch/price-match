@@ -10,12 +10,14 @@
 //   APP_TOKEN    shared token compiled into the app (Config/Secrets.xcconfig)
 
 // Each SerpApi engine the app uses, and the query parameters it may pass through.
+// google_lens searches by Home Depot's product photo.
 const ALLOWED = {
   home_depot: ["q"],
   walmart: ["query"],
   amazon: ["k", "amazon_domain"],
   google_shopping: ["q", "gl", "hl", "location"],
   google_immersive_product: ["page_token"],
+  google_lens: ["url", "type", "country", "hl"],
 };
 
 const CACHE_SECONDS = 15 * 60;

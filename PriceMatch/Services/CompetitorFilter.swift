@@ -25,6 +25,26 @@ enum CompetitorFilter {
         Retailer(name: "Sears", matches: ["sears"], eligible: true),
         Retailer(name: "Kohl's", matches: ["kohl's", "kohls"], eligible: true),
         Retailer(name: "Wayfair", matches: ["wayfair"], eligible: true),
+        Retailer(name: "Acme Tools", matches: ["acme tools"], eligible: true),
+        Retailer(name: "Zoro", matches: ["zoro"], eligible: true),
+        Retailer(name: "Kroger", matches: ["kroger"], eligible: true),
+        Retailer(name: "Publix", matches: ["publix"], eligible: true),
+        Retailer(name: "H-E-B", matches: ["h-e-b", "heb"], eligible: true),
+        Retailer(name: "Hy-Vee", matches: ["hy-vee", "hyvee"], eligible: true),
+        Retailer(name: "Meijer", matches: ["meijer"], eligible: true),
+        Retailer(name: "Safeway", matches: ["safeway"], eligible: true),
+        Retailer(name: "Albertsons", matches: ["albertsons"], eligible: true),
+        Retailer(name: "Fred Meyer", matches: ["fred meyer"], eligible: true),
+        Retailer(name: "CVS", matches: ["cvs"], eligible: true),
+        Retailer(name: "Walgreens", matches: ["walgreens"], eligible: true),
+        Retailer(name: "Dollar General", matches: ["dollar general"], eligible: true),
+        Retailer(name: "Staples", matches: ["staples"], eligible: true),
+        Retailer(name: "Office Depot", matches: ["office depot", "officedepot"], eligible: true),
+        Retailer(name: "Bed Bath & Beyond", matches: ["bed bath"], eligible: true),
+        Retailer(name: "Macy's", matches: ["macy's", "macys"], eligible: true),
+        Retailer(name: "JCPenney", matches: ["jcpenney", "jc penney"], eligible: true),
+        Retailer(name: "Overstock", matches: ["overstock"], eligible: true),
+        Retailer(name: "Newegg", matches: ["newegg"], eligible: true),
         // Warehouse clubs need a membership, so they usually don't qualify.
         Retailer(name: "Costco", matches: ["costco"], eligible: false),
         Retailer(name: "Sam's Club", matches: ["sam's club", "sams club"], eligible: false),
@@ -37,8 +57,12 @@ enum CompetitorFilter {
     }
 
     /// The known retailer behind a seller name, or nil for marketplaces / unknown sellers.
+    /// Different businesses whose names start like a known retailer.
+    private static let lookalikes = ["lowes foods", "target optical"]
+
     static func retailer(for source: String) -> Retailer? {
         let s = source.lowercased().trimmingCharacters(in: .whitespaces)
+        if lookalikes.contains(where: { s.hasPrefix($0) }) { return nil }
         // "Walmart - SomeSeller" / "eBay - seller" are marketplace sellers, not the store itself.
         if s.contains(" - ") { return nil }
         return retailers.first { r in
@@ -58,6 +82,11 @@ enum CompetitorFilter {
         }
         let s = source.lowercased()
         if s.contains(" - ") || marketplaces.contains(where: { s.hasPrefix($0) }) {
+            return (source, .excluded)
+        }
+        // Pawn shops, liquidators and resellers aren't price-match competitors.
+        let resale = ["pawn", "liquidat", "surplus", "resale", "thrift", "second hand", "secondhand", "salvage", "closeout"]
+        if resale.contains(where: { s.contains($0) }) {
             return (source, .excluded)
         }
         return (source, .otherStore)

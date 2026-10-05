@@ -66,7 +66,7 @@ final class PriceLookupService {
     }
 
     /// 1. Home Depot by barcode → exact model + Home Depot's price (falls back to UPCitemdb for the model).
-    /// 2. Walmart, Amazon and Google Shopping by brand + model, in parallel, then Google's
+    /// 2. Walmart, Amazon, Google Shopping and Google Lens (Home Depot's photo), in parallel, then Google's
     ///    product page for the exact item (every store Google groups as identical, incl. Lowe's).
     /// 3. Keep only listings for that exact model. (Google Shopping can't search by barcode —
     ///    it returns unrelated products — so we never ask it to.)
@@ -99,8 +99,13 @@ final class PriceLookupService {
         async let amazon = try? client.amazon(query)
         // "Lowe's" in the search pulls Lowe's listings to the top without hiding other stores.
         async let google = try? client.googleShopping("Lowe's " + query)
+        // Google Lens on Home Depot's photo finds stores that word searches miss (Target, Lowe's, CVS…).
+        async let lens: [ShoppingListing]? = {
+            guard let image = product.imageURL else { return nil }
+            return try? await client.googleLens(imageURL: image)
+        }()
         let googleListings = await google ?? []
-        let all = (await walmart ?? []) + (await amazon ?? []) + googleListings
+        let all = (await walmart ?? []) + (await amazon ?? []) + googleListings + (await lens ?? [])
         var listings: [ShoppingListing] = all.compactMap { listing in
             guard let how = ProductMatcher.match(listing.title, price: listing.price, product: product,
                                                  referencePrice: homeDepotPrice) else { return nil }
@@ -119,6 +124,7 @@ final class PriceLookupService {
             // Google already grouped these as the same product; still drop other models and silly prices.
             listings += stores.filter { store in
                 ProductMatcher.hasNoOtherModel(store.title, product: product)
+                    && !ProductMatcher.hasDifferentSize(store.title, product: product)
                     && (homeDepotPrice.map { hd in store.price >= hd * 0.5 && store.price <= hd * 2 } ?? true)
             }
         }
@@ -151,16 +157,27 @@ final class PriceLookupService {
                 availability: CompetitorFilter.availability(delivery: listing.delivery, notes: listing.notes),
                 link: listing.link,
                 kind: store.kind,
-                matchedByName: listing.matchedByName
+                matchedByName: listing.matchedByName,
+                isApproximate: listing.isApproximatePrice
             )
-            if let existing = bestPerStore[offer.storeName], existing.price <= offer.price { continue }
+            // An exact price always beats a rounded one from the same store; otherwise keep the cheapest.
+            if let existing = bestPerStore[offer.storeName] {
+                if !existing.isApproximate && offer.isApproximate { continue }
+                if existing.isApproximate == offer.isApproximate && existing.price <= offer.price { continue }
+            }
             bestPerStore[offer.storeName] = offer
         }
 
-        // Major stores first, then other stores, then excluded sellers; cheapest first within each.
-        let offers = bestPerStore.values
-            .sorted { ($0.kind.rawValue, $0.price) < ($1.kind.rawValue, $1.price) }
+        // Major stores first, then other stores, then excluded sellers; exact prices before
+        // rounded ones; cheapest first within each.
+        let sorted = bestPerStore.values
+            .sorted { ($0.kind.rawValue, $0.isApproximate ? 1 : 0, $0.price) < ($1.kind.rawValue, $1.isApproximate ? 1 : 0, $1.price) }
+        // Known retailers first; at most 2 unknown stores so the list stays trustworthy.
+        let known = sorted.filter { $0.kind != .otherStore }
+        let unknown = sorted.filter { $0.kind == .otherStore }.prefix(2)
+        let offers = (known.prefix(max(1, maxResults)) + unknown)
             .prefix(max(1, maxResults))
+            .sorted { ($0.kind.rawValue, $0.isApproximate ? 1 : 0, $0.price) < ($1.kind.rawValue, $1.isApproximate ? 1 : 0, $1.price) }
 
         var info = product
         if info.imageURL == nil { info.imageURL = listings.first?.thumbnail }

@@ -11,6 +11,7 @@ struct ShoppingListing {
     let thumbnail: URL?
     var productToken: String? = nil   // Google Shopping: opens the product page listing every store
     var matchedByName = false         // matched by product name rather than model number
+    var isApproximatePrice = false    // Google Lens shows rounded prices ("$14*")
 }
 
 /// The exact item as Home Depot sells it.
@@ -76,7 +77,7 @@ struct SerpApiClient {
         let json = try await get(["engine": "walmart", "query": query])
         return (json["organic_results"] as? [[String: Any]] ?? []).compactMap { r in
             guard r["out_of_stock"] as? Bool != true,
-                  let title = r["title"] as? String,
+                  let title = (r["title"] as? String).map(cleanTitle),
                   let price = number((r["primary_offer"] as? [String: Any])?["offer_price"])
             else { return nil }
             let seller = r["seller_name"] as? String ?? "Walmart.com"
@@ -98,7 +99,11 @@ struct SerpApiClient {
     func amazon(_ query: String) async throws -> [ShoppingListing] {
         let json = try await get(["engine": "amazon", "k": query, "amazon_domain": "amazon.com"])
         return (json["organic_results"] as? [[String: Any]] ?? []).compactMap { r in
-            guard let title = r["title"] as? String, let price = number(r["extracted_price"]) else { return nil }
+            guard var title = (r["title"] as? String).map(cleanTitle), let price = number(r["extracted_price"]) else { return nil }
+            // Amazon often puts the brand in its own field and leaves it out of the title.
+            if let brand = r["brand"] as? String, !brand.isEmpty, !title.lowercased().contains(brand.lowercased()) {
+                title = brand + " " + title
+            }
             let deliveries = r["delivery"] as? [String] ?? []
             // Prefer the non-Prime delivery date, since the customer may not have Prime.
             let delivery = deliveries.first { $0.lowercased().contains("non-members") }
@@ -133,7 +138,7 @@ struct SerpApiClient {
             var notes = r["extensions"] as? [String] ?? []
             if let tag = r["tag"] as? String { notes.append(tag) }
             return ShoppingListing(
-                title: r["title"] as? String ?? "",
+                title: cleanTitle(r["title"] as? String ?? ""),
                 source: source,
                 price: price,
                 delivery: r["delivery"] as? String,
@@ -164,7 +169,40 @@ struct SerpApiClient {
         }
     }
 
+    /// Google Lens on Home Depot's product photo: stores selling the same-looking product,
+    /// like a person comparing pictures. Prices are rounded, so they're marked approximate.
+    func googleLens(imageURL: URL) async throws -> [ShoppingListing] {
+        let json = try await get(["engine": "google_lens", "type": "products", "url": imageURL.absoluteString,
+                                  "country": "us", "hl": "en"])
+        return (json["visual_matches"] as? [[String: Any]] ?? []).compactMap { v in
+            guard let source = v["source"] as? String,
+                  let title = (v["title"] as? String).map(cleanTitle),
+                  let price = number((v["price"] as? [String: Any])?["extracted_value"])
+            else { return nil }
+            if v["in_stock"] as? Bool == false { return nil }
+            return ShoppingListing(
+                title: title,
+                source: source,
+                price: price,
+                delivery: nil,
+                notes: v["in_stock"] as? Bool == true ? ["In stock"] : [],
+                link: (v["link"] as? String).flatMap(URL.init(string:)),
+                thumbnail: (v["thumbnail"] as? String).flatMap(URL.init(string:)),
+                isApproximatePrice: true
+            )
+        }
+    }
+
     // MARK: - Plumbing
+
+    /// Store titles sometimes arrive with HTML escapes ("ARM &amp; HAMMER").
+    private func cleanTitle(_ title: String) -> String {
+        title.replacingOccurrences(of: "&amp;", with: "&")
+            .replacingOccurrences(of: "&quot;", with: "\"")
+            .replacingOccurrences(of: "&#39;", with: "'")
+            .replacingOccurrences(of: "&#x27;", with: "'")
+            .trimmingCharacters(in: .whitespaces)
+    }
 
     private func get(_ params: [String: String]) async throws -> [String: Any] {
         var request: URLRequest

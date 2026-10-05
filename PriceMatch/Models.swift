@@ -15,13 +15,16 @@ struct Offer: Identifiable, Hashable {
     let link: URL?
     let kind: Kind
     var matchedByName = false   // no model number in the listing; matched by name and specs
+    var isApproximate = false   // found by picture (Google Lens); price is rounded
 
     var isEligible: Bool { kind == .majorStore }
 
     /// Short warning shown on the card, or nil for major stores.
     var note: String? {
         switch kind {
-        case .majorStore: return matchedByName ? "Check it's the same item" : nil
+        case .majorStore:
+            if isApproximate { return "Tap to check the exact price" }
+            return matchedByName ? "Check it's the same item" : nil
         case .otherStore: return "Check if this store qualifies"
         case .excluded: return "Usually can't be matched"
         }
@@ -41,7 +44,8 @@ struct LookupResult: Hashable {
     let homeDepotPrice: Double?
     let offers: [Offer]          // sorted, cheapest first
 
-    var cheapest: Offer? { offers.first(where: \.isEligible) }
+    /// The headline only ever uses an exact price from a major store.
+    var cheapest: Offer? { offers.first { $0.isEligible && !$0.isApproximate } }
 }
 
 enum LookupError: LocalizedError {
@@ -90,6 +94,11 @@ enum Barcode {
 enum Money {
     static func format(_ value: Double) -> String {
         value.formatted(.currency(code: "USD"))
+    }
+
+    /// "About $14" for rounded prices.
+    static func format(_ value: Double, approximate: Bool) -> String {
+        approximate ? "About " + value.formatted(.currency(code: "USD").precision(.fractionLength(0))) : format(value)
     }
 }
 

@@ -50,7 +50,8 @@
 ## ✨ What makes it good at the register
 
 - **📷 Scans live, no photo.** The camera opens straight away; hold up the barcode and it beeps once when it's read.
-- **🎯 Exact item only.** A competitor price is only shown if the listing names the *same model number*, with no other model in it. Look-alike models, used items and bundles ("drill + 100-piece bit set") are thrown out.
+- **🎯 Matches like a cashier.** A listing counts only if it's the same item: the same model number, or the same brand, full product name and every spec ("2K", "20V"); the **same size** (fl oz, loads, lbs, count, pack); the same color/finish; new (not used, refurbished or an accessory); and a sensible price. Name-only matches say *"Check it's the same item"*.
+- **📸 Finds stores by picture too.** Google Lens looks at Home Depot's product photo to find stores that word searches miss (Target, Lowe's, CVS…). Lens prices are rounded, so they show as *"About $14 — tap to check the exact price"* and never drive the big answer.
 - **🟢 One big answer.** "Amazon has it for $24.98 — Home Depot price: $29.97 — That's $4.99 less." Green when a lower price exists, grey when not.
 - **🏪 Major retailers first.** Lowe's, Menards, Walmart, Amazon, Ace and others are recognised. Marketplace sellers ("Walmart – SomeSeller"), eBay and warehouse clubs are hidden or flagged *"Usually can't be matched"*.
 - **🧓 Built for anyone.** Huge rounded text that follows the phone's text size, plain words ("barcode", not "UPC"), one big button per screen, no pop-ups, no menus. Setup hides behind a 2-second press so nobody opens it by accident.
@@ -68,7 +69,8 @@ flowchart LR
     E --> W[Walmart]
     E --> Z[Amazon]
     E --> G[Google Shopping<br/>+ Google product page]
-    W & Z & G --> F[Keep exact model only<br/>drop bundles & marketplace sellers]
+    C --> L[Google Lens<br/>on Home Depot's photo]
+    W & Z & G & L --> F[Same item only: model or name,<br/>size, color, new, sensible price]
     F --> R[🟢 / ⚪ One big answer<br/>+ up to 5 stores, cheapest first]
 ```
 
@@ -78,6 +80,7 @@ flowchart LR
 | Fallback | [UPCitemdb](https://www.upcitemdb.com) (free) | Model number for barcodes Home Depot doesn't recognise (e.g. older packaging) |
 | Competitors | Walmart, Amazon, Google Shopping | Searched by brand + model, in parallel |
 | Everyone else, incl. Lowe's | Google's product page | Google groups identical items across stores |
+| Stores found by picture | Google Lens on Home Depot's photo | Catches Target, Lowe's, grocery and pharmacy chains (rounded prices) |
 
 > Google Shopping **can't** search by barcode. It returns unrelated products (an umbrella for a drill's barcode). That's why the app always finds the model number first.
 
@@ -122,7 +125,7 @@ Then copy `Config/Secrets.example.xcconfig` to `Config/Secrets.xcconfig` (git-ig
 
 | | Free plan | Notes |
 |---|---|---|
-| SerpApi | 250 searches / month | Each scan uses **4–5 searches** → about **50 scans / month**. Re-scanning the same item within 15 minutes is free. A register needs a paid plan. |
+| SerpApi | 250 searches / month | Each scan uses **5–6 searches** → about **40 scans / month**. Re-scanning the same item within 15 minutes is free. A register needs a paid plan. |
 | UPCitemdb | ~100 lookups / day | Only used when Home Depot doesn't recognise a barcode |
 
 ## 🗂 Project structure
