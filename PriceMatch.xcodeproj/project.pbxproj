@@ -8,6 +8,8 @@
 
 /* Begin PBXFileReference section */
 		A10000000000000000000001 /* PriceMatch.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = PriceMatch.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		A10000000000000000000011 /* App.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = App.xcconfig; sourceTree = "<group>"; };
+		A10000000000000000000012 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -33,8 +35,18 @@
 			isa = PBXGroup;
 			children = (
 				A10000000000000000000002 /* PriceMatch */,
+				A10000000000000000000010 /* Config */,
 				A10000000000000000000005 /* Products */,
 			);
+			sourceTree = "<group>";
+		};
+		A10000000000000000000010 /* Config */ = {
+			isa = PBXGroup;
+			children = (
+				A10000000000000000000011 /* App.xcconfig */,
+				A10000000000000000000012 /* Info.plist */,
+			);
+			path = Config;
 			sourceTree = "<group>";
 		};
 		A10000000000000000000005 /* Products */ = {
@@ -174,12 +186,14 @@
 		};
 		A1000000000000000000000E /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = A10000000000000000000011 /* App.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 98DJ28YB26;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Config/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "Price Match";
 				INFOPLIST_KEY_NSCameraUsageDescription = "The camera is used to read the barcode on the item.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -201,12 +215,14 @@
 		};
 		A1000000000000000000000F /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = A10000000000000000000011 /* App.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 98DJ28YB26;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Config/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "Price Match";
 				INFOPLIST_KEY_NSCameraUsageDescription = "The camera is used to read the barcode on the item.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;

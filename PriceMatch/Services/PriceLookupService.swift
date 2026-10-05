@@ -28,7 +28,8 @@ final class PriceLookupService {
             return
         }
 
-        guard let key = KeychainStore.string(for: SettingsKeys.apiKey), !key.isEmpty else {
+        let key = KeychainStore.string(for: SettingsKeys.apiKey) ?? ""
+        guard PriceServer.current != nil || !key.isEmpty else {
             state = .failed(LookupError.notSetUp.errorDescription!)
             return
         }

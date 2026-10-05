@@ -21,7 +21,22 @@ struct HomeDepotProduct {
     let thumbnail: URL?
 }
 
-/// Live prices through SerpApi (https://serpapi.com). Each call below is one search.
+/// The Price Match key server (see /server), set at build time in Config/Secrets.xcconfig.
+struct PriceServer {
+    let host: String
+    let token: String
+
+    static let current: PriceServer? = {
+        let info = Bundle.main.infoDictionary ?? [:]
+        guard let host = (info["PriceServerHost"] as? String)?.trimmingCharacters(in: .whitespaces), !host.isEmpty,
+              let token = (info["PriceServerToken"] as? String)?.trimmingCharacters(in: .whitespaces), !token.isEmpty
+        else { return nil }
+        return PriceServer(host: host, token: token)
+    }()
+}
+
+/// Live prices through SerpApi (https://serpapi.com), either via our key server or directly
+/// with a key from Setup. Each call below is one search.
 struct SerpApiClient {
     let apiKey: String
     var location: String?
@@ -151,19 +166,33 @@ struct SerpApiClient {
     // MARK: - Plumbing
 
     private func get(_ params: [String: String]) async throws -> [String: Any] {
-        var components = URLComponents(string: "https://serpapi.com/search.json")!
-        components.queryItems = params.map { URLQueryItem(name: $0.key, value: $0.value) }
-            + [URLQueryItem(name: "api_key", value: apiKey)]
+        var request: URLRequest
+        if let server = PriceServer.current {
+            // Our key server adds the SerpApi key, so it never ships in the app.
+            var components = URLComponents()
+            components.scheme = "https"
+            components.host = server.host
+            components.path = "/search"
+            components.queryItems = params.map { URLQueryItem(name: $0.key, value: $0.value) }
+            request = URLRequest(url: components.url!, timeoutInterval: 12)
+            request.setValue(server.token, forHTTPHeaderField: "X-App-Token")
+        } else {
+            var components = URLComponents(string: "https://serpapi.com/search.json")!
+            components.queryItems = params.map { URLQueryItem(name: $0.key, value: $0.value) }
+                + [URLQueryItem(name: "api_key", value: apiKey)]
+            // Never let one slow store hold up the answer at the register.
+            request = URLRequest(url: components.url!, timeoutInterval: 12)
+        }
 
         let data: Data
         let response: URLResponse
         do {
-            // Never let one slow store hold up the answer at the register.
-            (data, response) = try await URLSession.shared.data(for: URLRequest(url: components.url!, timeoutInterval: 12))
+            (data, response) = try await URLSession.shared.data(for: request)
         } catch {
             throw LookupError.offline
         }
         let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+        if status == 429 { throw LookupError.busy }
         guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             throw LookupError.other("Unreadable response (HTTP \(status))")
         }

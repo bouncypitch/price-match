@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Merged with Xcode's generated Info.plist. Values come from Config/App.xcconfig. -->
+	<key>PriceServerHost</key>
+	<string>$(PRICE_SERVER_HOST)</string>
+	<key>PriceServerToken</key>
+	<string>$(PRICE_SERVER_TOKEN)</string>
+</dict>
+</plist>

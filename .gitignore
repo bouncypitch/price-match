@@ -9,3 +9,9 @@ xcuserdata/
 
 # macOS
 .DS_Store
+
+# Price server secrets
+Config/Secrets.xcconfig
+server/.dev.vars
+server/.wrangler/
+server/node_modules/

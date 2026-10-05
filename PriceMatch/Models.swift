@@ -49,6 +49,7 @@ enum LookupError: LocalizedError {
     case notSetUp
     case badKey
     case outOfSearches
+    case busy
     case offline
     case other(String)
 
@@ -62,6 +63,8 @@ enum LookupError: LocalizedError {
             return "This phone isn't set up yet. Ask a manager to add the price service key in Settings."
         case .badKey:
             return "The price service key isn't working. Ask a manager to check Settings."
+        case .busy:
+            return "Too many lookups right now. Please wait a minute and try again."
         case .outOfSearches:
             return "The price service has used up its searches for this month. Ask a manager."
         case .offline:
@@ -87,6 +90,11 @@ enum Money {
     static func format(_ value: Double) -> String {
         value.formatted(.currency(code: "USD"))
     }
+}
+
+/// True when prices can be looked up: a key server is built in, or a key was entered in Setup.
+var isPriceServiceSetUp: Bool {
+    PriceServer.current != nil || KeychainStore.string(for: SettingsKeys.apiKey) != nil
 }
 
 enum SettingsKeys {

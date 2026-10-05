@@ -89,9 +89,34 @@ flowchart LR
 2. **Signing & Capabilities** → choose your Apple ID as *Team*, and set a unique *Bundle Identifier* (e.g. `com.yourname.pricematch`).
 3. Plug in the iPhone, turn on **Developer Mode** (Settings → Privacy & Security), pick it in Xcode and press **▶ Run**.
 4. First launch: on the iPhone, trust the developer (Settings → General → VPN & Device Management).
-5. In the app, tap **"Not set up yet — tap here"**, paste the SerpApi key, add the store's city and state, and tap **Done**.
+5. **Prices:** either set up the [key server](#-key-server) (recommended, nothing to type on the phone), or in the app tap **"Not set up yet — tap here"** and paste a SerpApi key.
 
 > **Free Apple ID:** the app stops opening after 7 days and needs reinstalling from Xcode. A paid Apple Developer account ($99/yr) removes the limit and allows TestFlight for several phones.
+
+## 🔑 Key server
+
+`server/` is a tiny [Cloudflare Worker](https://developers.cloudflare.com/workers/) that holds the SerpApi key, so the key **never ships inside the app**. The app sends its searches to the Worker, which:
+
+- requires the app's token (`X-App-Token`),
+- only allows the 5 searches the app uses (Home Depot, Walmart, Amazon, Google Shopping, Google product page),
+- limits each connection to 60 searches a minute,
+- caches answers for 15 minutes, so the same item scanned on several phones costs one set of searches.
+
+**Set up (once):**
+
+```bash
+cd server
+npm install
+npx wrangler login
+npx wrangler deploy
+npx wrangler secret put SERPAPI_KEY   # paste your SerpApi key
+openssl rand -hex 32                  # make an app token…
+npx wrangler secret put APP_TOKEN     # …and paste it here
+```
+
+Then copy `Config/Secrets.example.xcconfig` to `Config/Secrets.xcconfig` (git-ignored) and fill in the Worker's host and the same token. Builds now use the server automatically, and Setup shows *"Connected to the Price Match server"*. Leave the file out to fall back to a key typed into Setup.
+
+> The app token is compiled into the app, so it's a speed bump, not a vault. That's fine for TestFlight to a few people; for a public release, add Apple's App Attest.
 
 ## 💲 Costs
 
@@ -119,6 +144,8 @@ PriceMatch/
     ├── CompetitorFilter.swift   Which stores count, plain-words availability
     ├── UPCItemDBClient.swift    Barcode → model fallback
     └── KeychainStore.swift      Stores the API key securely
+Config/                          App.xcconfig, Info.plist additions, Secrets.xcconfig (git-ignored)
+server/                          Cloudflare Worker key server
 docs/                            README images, screenshots and the demo video
 ```
 

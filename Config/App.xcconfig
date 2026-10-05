@@ -1,0 +1,10 @@
+// Build settings for the Price Match app target.
+//
+// PRICE_SERVER_HOST / PRICE_SERVER_TOKEN point the app at the key server in /server.
+// Put the real values in Config/Secrets.xcconfig (not committed — see Secrets.example.xcconfig).
+// Leave them empty to use a SerpApi key entered in the app's Setup screen instead.
+
+PRICE_SERVER_HOST =
+PRICE_SERVER_TOKEN =
+
+#include? "Secrets.xcconfig"

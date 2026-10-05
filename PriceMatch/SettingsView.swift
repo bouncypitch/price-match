@@ -12,14 +12,19 @@ struct SettingsView: View {
         NavigationStack {
             Form {
                 Section {
-                    SecureField("SerpApi key", text: $apiKey)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                    Link("Get a key at serpapi.com", destination: URL(string: "https://serpapi.com/manage-api-key")!)
+                    if PriceServer.current != nil {
+                        Label("Connected to the Price Match server", systemImage: "checkmark.seal.fill")
+                            .foregroundStyle(.green)
+                    } else {
+                        SecureField("SerpApi key", text: $apiKey)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
+                        Link("Get a key at serpapi.com", destination: URL(string: "https://serpapi.com/manage-api-key")!)
+                    }
                 } header: {
                     Text("Price service")
                 } footer: {
-                    Text("Each scan uses 4 searches. Scanning the same item again within 15 minutes is free.")
+                    Text("Each scan uses 4–5 searches. Scanning the same item again within 15 minutes is free.")
                 }
 
                 Section {

@@ -1,0 +1,14 @@
+{
+  // Price Match key server — see src/index.js
+  "name": "pricematch-server",
+  "main": "src/index.js",
+  "compatibility_date": "2026-09-01",
+  "ratelimits": [
+    {
+      // 60 searches per minute per connection ≈ 12 scans a minute.
+      "name": "LIMITER",
+      "namespace_id": "1001",
+      "simple": { "limit": 60, "period": 60 }
+    }
+  ]
+}

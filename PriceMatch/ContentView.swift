@@ -8,7 +8,7 @@ struct ContentView: View {
     @State private var showingKeypad = false
     @State private var showingSettings = false
     @State private var cameraAllowed: Bool?
-    @State private var isSetUp = KeychainStore.string(for: SettingsKeys.apiKey) != nil
+    @State private var isSetUp = isPriceServiceSetUp
     @State private var demoItem = 1
 
     private var isScanning: Bool {
@@ -74,7 +74,7 @@ struct ContentView: View {
             }
         }
         .sheet(isPresented: $showingSettings, onDismiss: {
-            isSetUp = KeychainStore.string(for: SettingsKeys.apiKey) != nil
+            isSetUp = isPriceServiceSetUp
         }) {
             SettingsView()
         }
