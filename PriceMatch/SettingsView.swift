@@ -8,6 +8,13 @@ struct SettingsView: View {
     @AppStorage(SettingsKeys.maxResults) private var maxResults = 5
     @AppStorage(SettingsKeys.showOthers) private var showOthers = false
 
+    private var appVersion: String {
+        let info = Bundle.main.infoDictionary ?? [:]
+        let version = info["CFBundleShortVersionString"] as? String ?? "?"
+        let build = info["CFBundleVersion"] as? String ?? "?"
+        return "\(version) (build \(build))"
+    }
+
     var body: some View {
         NavigationStack {
             Form {
@@ -33,6 +40,10 @@ struct SettingsView: View {
                     Text("Store location")
                 } footer: {
                     Text("City and state, used to find nearby stores with the item in stock. Leave empty for nationwide prices.")
+                }
+
+                Section {
+                    LabeledContent("Version", value: appVersion)
                 }
 
                 Section("Results") {
